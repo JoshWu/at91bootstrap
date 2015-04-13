@@ -250,7 +250,13 @@ struct linux_zimage_header {
 	unsigned int	end;
 };
 
-unsigned int kernel_size(unsigned char *addr)
+enum kernel_type {
+	UNKOWN_TYPE,
+	UIMAGE_TYPE,
+	ZIMAGE_TYPE
+};
+
+static enum kernel_type detect_kernel(unsigned char *addr)
 {
 	struct linux_uimage_header *uimage_header
 			= (struct linux_uimage_header *)addr;
@@ -261,13 +267,35 @@ unsigned int kernel_size(unsigned char *addr)
 	unsigned int magic = swap_uint32(uimage_header->magic);
 
 	if (magic == LINUX_UIMAGE_MAGIC)
-		return swap_uint32(uimage_header->size)
-			+ sizeof(struct linux_uimage_header);
+		return UIMAGE_TYPE;
 
 	if (zimage_header->magic == LINUX_ZIMAGE_MAGIC)
-		return zimage_header->end - zimage_header->start;
+		return ZIMAGE_TYPE;
 
-	return -1;
+	return UNKOWN_TYPE;
+}
+
+static unsigned int kernel_size(unsigned char *addr)
+{
+	struct linux_uimage_header *uimage_header
+			= (struct linux_uimage_header *)addr;
+
+	struct linux_zimage_header *zimage_header
+			= (struct linux_zimage_header *)addr;
+
+	unsigned int magic = swap_uint32(uimage_header->magic);
+
+	kernel_type type = detect_kernel(addr);
+
+	switch (type) {
+	case UIMAGE_TYPE:
+		return swap_uint32(uimage_header->size)
+			+ sizeof(struct linux_uimage_header);
+	case ZIMAGE_TYPE:
+		return zimage_header->end - zimage_header->start;
+	default:
+		return -1;
+	}
 }
 
 #if defined(CONFIG_LINUX_UIMAGE)
